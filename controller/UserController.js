@@ -70,27 +70,29 @@ const login = (req, res) => {
 };
 
 const passwordResetRequest = (req, res) => {
-    const {email} = req.body;
+    const { email } = req.body;
 
     let sql = 'SELECT * FROM users WHERE email = ?';
-    conn.query(sql, email,
-        (err, results) => {
-            if(err) {
-                console. log(err);
-                return res.status(StatusCodes.BAD_REQUEST).end();
-            }
-            //이메일로 유저가 있는지 찾아봅시다.
-            const user = results[0];
-            if (user){
-                return res.status(StatusCodes.OK).json({
-                    email : email
-                });
-            } else {
-                return res.status(StatusCodes.UNAUTHORIZED).end();
-            }
+
+    conn.query(sql, email, (err, results) => {
+        if (err) {
+            console.log(err);
+            return res.status(StatusCodes.BAD_REQUEST).end();
         }
-    )
+
+        // 이메일로 유저가 있는지 찾아봅니다!
+        const user = results[0];
+
+        if (user) {
+            return res.status(StatusCodes.OK).json({
+            email: email
+        });
+        } else {
+            return res.status(StatusCodes.UNAUTHORIZED).end();
+        }
+    });
 };
+
 
 const passwordReset = (req, res) => {
     const { email, password } = req.body;
