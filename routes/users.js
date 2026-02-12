@@ -5,7 +5,7 @@ const conn = require('../mariadb');
 const {
     join,
     login,
-    requestPasswordReset,
+    passwordResetRequest,
     passwordReset  
 } = require('../controller/UserController');
 
@@ -13,7 +13,7 @@ router.use(express.json());
 
 router.post('/join', join);
 router.post('/login',login);
-router.post('/reset',requestPasswordReset);
+router.post('/reset',passwordResetRequest);
 router.put('/reset',passwordReset);
 
 module.exports = router
