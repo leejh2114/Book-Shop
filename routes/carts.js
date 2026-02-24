@@ -1,21 +1,16 @@
-const express = require('express') ;
-const router = express. Router() ;
+import express from "express";
+import {
+  addCart,
+  getCartItems,
+  deleteCartItem,
+} from "../controller/cartController.js";
+const router = express.Router();
 
-router.use(express.json());
+router
+  .post("/", addCart)
 
-// 장바구니 담기
-router.post('/', (req,res) => {
-res. json('장바구니 담기');
-});
+  .get("/", getCartItems)
 
-// 장바구니 조회
-router.get('/', (req, res) => {
-res. json('장바구니 조회');
-});
+  .delete("/:cart_id", deleteCartItem);
 
-// 장바구니 도서 삭제
-router.delete('/:id', (req,res) => {
-res. json('장바구니 도서 삭제');
-});
-
-module.exports = router
+export default router;

@@ -1,19 +1,64 @@
-const express = require('express');
+import express from "express";
+import { body } from "express-validator";
+import { validator } from "../middleware/validator.js";
+import {
+  join,
+  login,
+  pwdResetReq,
+  pwdReset,
+} from "../controller/userController.js";
+
 const router = express.Router();
-const conn = require('../mariadb');
 
-const {
+router
+  .post(
+    "/join",
+    [
+      body("email").notEmpty().isEmail().withMessage("이메일을 확인해주세요."),
+      body("name").notEmpty().isString().withMessage("이름을 확인해주세요."),
+      body("password")
+        .notEmpty()
+        .isString()
+        .withMessage("비밀번호를 확인해주세요."),
+    ],
+    validator,
     join,
+  )
+
+  .post(
+    "/login",
+    [
+      body("email")
+        .notEmpty()
+        .isEmail()
+        .withMessage("올바른 이메일 형식이 아닙니다."),
+      body("password")
+        .notEmpty()
+        .isString()
+        .withMessage("비밀번호를 입력해주세요."),
+    ],
+    validator,
     login,
-    passwordResetRequest,
-    passwordReset  
-} = require('../controller/UserController');
+  )
 
-router.use(express.json());
+  .post(
+    "/reset",
+    [body("email").notEmpty().isEmail().withMessage("이메일을 입력해주세요.")],
+    validator,
+    pwdResetReq,
+  )
 
-router.post('/join', join);
-router.post('/login',login);
-router.post('/reset',passwordResetRequest);
-router.put('/reset',passwordReset);
+  .put(
+    "/reset",
+    [
+      body("email").notEmpty().isEmail().withMessage("이메일을 입력해주세요."),
+      body("password")
+        .notEmpty()
+        .isString()
+        .withMessage("새로운 비밀번호를 입력해주세요."),
+    ],
+    validator,
+    pwdReset,
+  );
 
-module.exports = router
+export default router;

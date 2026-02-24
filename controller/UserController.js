@@ -1,131 +1,131 @@
-const conn = require('../mariadb');
-const {StatusCodes} = require('http-status-codes');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto'); // crypto 모듈 : 암호화
-const dotenv = require('dotenv');
-dotenv.config();
+import conn from "../db/mysql_connect.js";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { StatusCodes } from "http-status-codes";
 
-const join = (req, res) => {
-    const {email, password} = req.body;
+// 회원가입
+export const join = (req, res) => {
+  const { email, name, password } = req.body;
 
-    let sql = 'INSERT INTO users (email, password) VALUES (?, ?)';
+  const salt = crypto.randomBytes(10).toString("base64");
 
-    // 비밀번호 암호화된 비밀번호 DB에 저장
-    const salt = crypto. randomBytes(10) .toString('base64');
-    const hashPassword = crypto.pbkdf2Sync(password, salt, 10000, 10, 'sha512').toString('base64');
+  const hashPassword = crypto
+    .pbkdf2Sync(password, salt, 10000, 10, "sha512")
+    .toString("base64");
 
-    // 회원가입 시 비밀번호를 암호화해서 암호화된 비밀번호와, salt 값을 같이 저장
-    // 로그인 시, 이메일&비밀번호(날 것) => salt값 꺼내서 비밀번호 암호화 해보고 => 디비 비밀번호랑 비교
-    
-    let values = [email, hashPassword, salt];
-    conn.query(sql, values,
-        (err, results) => {
-            if(err) {
-                console.log(err);
-                return res.status(StatusCodes.BAD_REQUEST).end();
-            }
+  const sql = `INSERT INTO users (email, name, password, salt) VALUES (?, ?, ?, ?)`;
+  const values = [email, name, hashPassword, salt];
 
-            return res.status(StatusCodes.BAD_REQUEST).json(results);
-        })
-};
-
-const login = (req, res) => {
-    const {email, password} = req.body;
-
-    let sql ='SELECT * FROM users WHERE email = ?';
-    conn.query(sql, email,
-        (err, results)=> {
-            if(err){
-                console.log(err);
-                return res.status(StatusCodes.BAD_REQUEST).end();
-            }
-
-            const loginUser = results[0];
-
-           // salt값 꺼내서 날 것으로 들어온 비밀번호를 암호화 해보고
-            const hashPassword = crypto.pbkdf2Sync(password, loginUser.salt, 10000, 10, 'sha512').toString('base64');
-
-            // => 디비 비밀번호랑 비교
-            if(loginUser && loginUser.password == hashPassword){
-                //토큰 발행
-                const token = jwt.sign({
-                    email : loginUser.email
-                }, process.env.PRIVATE_KEY,{
-                    expiresIn : '5m',
-                    issuer : "junhyun"
-                });
-
-                //토큰 쿠키에 담기
-                res.cookie("token", token,{
-                    httpOnly : true
-                });
-                console.log(token);
-
-                return res.status(StatusCodes.OK).json(results);
-            } else {
-                return res.status(StatusCodes.UNAUTHORIZED).end();
-            }            
-        }
-    )
-};
-
-const passwordResetRequest = (req, res) => {
-    const { email } = req.body;
-
-    let sql = 'SELECT * FROM users WHERE email = ?';
-
-    conn.query(sql, email, (err, results) => {
-        if (err) {
-            console.log(err);
-            return res.status(StatusCodes.BAD_REQUEST).end();
-        }
-
-        // 이메일로 유저가 있는지 찾아봅니다!
-        const user = results[0];
-
-        if (user) {
-            return res.status(StatusCodes.OK).json({
-            email: email
-        });
-        } else {
-            return res.status(StatusCodes.UNAUTHORIZED).end();
-        }
+  conn.query(sql, values, function (err, results) {
+    if (err) {
+      console.error("회원가입 DB 에러:", err);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
+    }
+    return res.status(StatusCodes.CREATED).json({
+      message: "회원가입 성공!",
+      result: results,
     });
+  });
 };
 
+// 로그인
+export const login = (req, res) => {
+  const { email, password } = req.body;
+  const sql = `SELECT * FROM users WHERE email = ?`;
 
-const passwordReset = (req, res) => {
-    const { email, password } = req.body;
+  conn.query(sql, [email], (err, results) => {
+    if (err) {
+      console.error("로그인 DB 에러:", err);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
+    }
 
-    let sql = 'UPDATE users SET password=?, salt=? WHERE email=?';
+    const loginUser = results[0];
 
-    // 암호화된 비밀번호와 salt 값을 같이 DB에 저장
-    const salt = crypto.randomBytes(10).toString('base64');
-    const hashPassword = crypto
-        .pbkdf2Sync(password, salt, 10000, 10, 'sha512')
-        .toString('base64');
+    if (loginUser) {
+      const hashPassword = crypto
+        .pbkdf2Sync(password, loginUser.salt, 10000, 10, "sha512")
+        .toString("base64");
 
-    let values = [password, salt, email];
+      if (loginUser.password === hashPassword) {
+        const token = jwt.sign(
+          {
+            email: loginUser.email,
+            name: loginUser.name,
+          },
+          process.env.JWT_SECRET_KEY,
+          {
+            expiresIn: "3m",
+            issuer: "kyuhyun",
+          },
+        );
 
-    conn.query(sql, values, (err, results) => {
-        if (err) {
-            console.log(err);
-            return res.status(StatusCodes.BAD_REQUEST).end();
-        }
-
-        if (results.affectedRows == 0)
-            return res.status(StatusCodes.BAD_REQUEST).end();
-        else
-            return res.status(StatusCodes.OK).json(results);
+        res.cookie("token", token, {
+          httpOnly: true,
         });
+
+        return res.status(StatusCodes.OK).json({
+          message: `${loginUser.name}님, 환영합니다!`,
+        });
+      }
+    }
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      message: "아이디 또는 비밀번호가 틀렸습니다.",
+    });
+  });
 };
 
+// 비밀번호 초기화 요청
+export const pwdResetReq = (req, res) => {
+  const { email } = req.body;
+  const sql = `SELECT * FROM users WHERE email = ?`;
 
+  conn.query(sql, [email], (err, results) => {
+    if (err) {
+      console.error("비밀번호 초기화 요청 DB 에러:", err);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
+    }
 
+    const user = results[0];
+    if (user) {
+      return res.status(StatusCodes.OK).json({
+        email: email,
+        message: "비밀번호를 변경할 준비가 되었습니다.",
+      });
+    } else {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        message: "해당 이메일로 가입된 정보가 없습니다.",
+      });
+    }
+  });
+};
 
-module.exports = {
-    join,
-    login,
-    passwordResetRequest,
-    passwordReset
+// 비밀번호 초기화
+export const pwdReset = (req, res) => {
+  const { email, password } = req.body;
+
+  const salt = crypto.randomBytes(10).toString("base64");
+
+  const hashPassword = crypto
+    .pbkdf2Sync(password, salt, 10000, 10, "sha512")
+    .toString("base64");
+
+  const sql = `UPDATE Users SET password = ?, salt = ? WHERE email = ?`;
+  const values = [hashPassword, salt, email];
+
+  conn.query(sql, values, (err, results) => {
+    if (err) {
+      console.error("비밀번호 변경 DB 에러:", err);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
+    }
+
+    if (results.affectedRows === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "비밀번호 변경에 실패했습니다.",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "비밀번호가 성공적으로 변경되었습니다.",
+    });
+  });
 };
