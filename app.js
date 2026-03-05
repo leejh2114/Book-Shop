@@ -1,19 +1,20 @@
-import express from "express";
-import dotenv from "dotenv";
+// express 모듈
+const express = require('express');
+const app = express();  
 
-import userRouter from "./routes/users.js";
-import bookRouter from "./routes/books.js";
-import categoryRouter from "./routes/category.js";
-import likeRouter from "./routes/likes.js";
-import cartRouter from "./routes/carts.js";
-import orderRouter from "./routes/orders.js";
-
+// dotenv 모듈
+const dotenv = require('dotenv');
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT;
+app.listen(process.env.PORT);
 
-app.use(express.json());
+
+const userRouter = require('./routes/users');
+const bookRouter = require('./routes/books');
+const categoryRouter = require('./routes/category');
+const likeRouter = require('./routes/likes');
+const cartRouter = require('./routes/carts');
+const orderRouter = require('./routes/orders');
 
 app.use("/users", userRouter);
 app.use("/books", bookRouter);
@@ -21,7 +22,3 @@ app.use("/category", categoryRouter);
 app.use("/likes", likeRouter);
 app.use("/carts", cartRouter);
 app.use("/orders", orderRouter);
-
-app.listen(PORT, () => {
-  console.log(`${PORT}번 포트에서 서버가 실행중입니다.`);
-});

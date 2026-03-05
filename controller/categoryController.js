@@ -1,14 +1,20 @@
-import conn from "../db/mysql_connect.js";
-import { StatusCodes } from "http-status-codes";
+const conn = require('../mariadb'); // db 모듈
+const {StatusCodes} = require('http-status-codes'); // status code 모듈
 
-export const getAllCategory = (req, res) => {
-  const sql = `SELECT * FROM category`;
+const allCategory = (req, res) => {
 
-  conn.query(sql, (err, results) => {
-    if (err) {
-      console.error("카테고리 전체 조회 요청 DB 에러:", err);
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
-    }
-    return res.status(StatusCodes.OK).json(results);
-  });
+    // 카테고리 전체 목록 리스트
+    let sql = `SELECT * FROM category`
+    conn.query(sql, (err, results) => {
+        if(err) {
+            console.log(err);
+            return res.status(StatusCodes.BAD_REQUEST).end();
+        }
+
+        return res.status(StatusCodes.OK).json(results);
+    })
+};
+
+module.exports = {
+    allCategory
 };

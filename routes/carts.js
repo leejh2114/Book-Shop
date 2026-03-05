@@ -1,16 +1,12 @@
-import express from "express";
-import {
-  addCart,
-  getCartItems,
-  deleteCartItem,
-} from "../controller/cartController.js";
+const express = require('express');
 const router = express.Router();
+const {addToCart, getCartItems, removeCartItem} = require('../controller/CartController');
 
-router
-  .post("/", addCart)
+router.use(express.json());
 
-  .get("/", getCartItems)
 
-  .delete("/:cart_id", deleteCartItem);
+router.post('/', addToCart);            // 장바구니 담기
+router.get('/', getCartItems);          // 장바구니 아이템 목록 조회 / 선택된 장바구니 아이템 목록 조회
+router.delete('/:id', removeCartItem);  // 장바구니 도서 삭제
 
-export default router;
+module.exports = router;

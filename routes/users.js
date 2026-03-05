@@ -1,64 +1,19 @@
-import express from "express";
-import { body } from "express-validator";
-import { validator } from "../middleware/validator.js";
-import {
-  join,
-  login,
-  pwdResetReq,
-  pwdReset,
-} from "../controller/userController.js";
-
+const express = require('express'); // express 모듈
 const router = express.Router();
+const conn = require('../mariadb'); // db 모듈
 
-router
-  .post(
-    "/join",
-    [
-      body("email").notEmpty().isEmail().withMessage("이메일을 확인해주세요."),
-      body("name").notEmpty().isString().withMessage("이름을 확인해주세요."),
-      body("password")
-        .notEmpty()
-        .isString()
-        .withMessage("비밀번호를 확인해주세요."),
-    ],
-    validator,
+const {
     join,
-  )
-
-  .post(
-    "/login",
-    [
-      body("email")
-        .notEmpty()
-        .isEmail()
-        .withMessage("올바른 이메일 형식이 아닙니다."),
-      body("password")
-        .notEmpty()
-        .isString()
-        .withMessage("비밀번호를 입력해주세요."),
-    ],
-    validator,
     login,
-  )
+    passwordResetRequest,
+    passwordReset
+} = require('../controller/UserController');
 
-  .post(
-    "/reset",
-    [body("email").notEmpty().isEmail().withMessage("이메일을 입력해주세요.")],
-    validator,
-    pwdResetReq,
-  )
+router.use(express.json());
 
-  .put(
-    "/reset",
-    [
-      body("email").notEmpty().isEmail().withMessage("이메일을 입력해주세요."),
-      body("password")
-        .notEmpty()
-        .isString()
-        .withMessage("새로운 비밀번호를 입력해주세요."),
-    ],
-    validator,
-    pwdReset,
-  );
+router.post('/join', join);     // 회원가입
+router.post('/login', login);   // 로그인
+router.post('/reset', passwordResetRequest); // 비밀번호 초기화 요청
+router.put('/reset', passwordReset);          // 비밀번호 초기화
 
-export default router;
+module.exports = router;

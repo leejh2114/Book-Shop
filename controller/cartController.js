@@ -1,65 +1,66 @@
-import conn from "../db/mysql_connect.js";
-import { StatusCodes } from "http-status-codes";
+// const conn = require('../mariadb'); // db 모듈
+const {StatusCodes} = require('http-status-codes'); // status code 모듈
 
-export const addCart = (req, res) => {
-  const { book_id, quantity, user_id } = req.body;
 
-  const sql = "INSERT INTO cart (book_id, quantity, user_id) VALUES (?, ?, ?)";
-  const values = [book_id, quantity, user_id];
+// 장바구니 담기
+const addToCart = (req, res) => {
+    const {book_id, quantity, user_id} = req.body;
 
-  conn.query(sql, values, (err, results) => {
-    if (err) {
-      console.error("장바구니 담기 DB 에러:", err);
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
-    }
-    return res.status(StatusCodes.CREATED).json(results);
-  });
+    let sql = "INSERT INTO cartItems (book_id, quantity, user_id) VALUES (?, ?, ?)";
+    let values = [book_id, quantity, user_id];
+
+    conn.query(sql, values,
+        (err, results) => {
+            if(err) {
+                console.log(err);
+                return res.status(StatusCodes.BAD_REQUEST).end();
+            }
+
+            return res.status(StatusCodes.OK).json(results);
+        }
+    )  
+}
+
+// 장바구니 아이템 목록 조회 + 선택한 장바구니 상품 목록 조회
+const getCartItems = (req, res) => {
+    const {user_id, selected} = req.body;   // selected = [1, 3]
+
+    let sql = `SELECT cartItems.id, book_id, title, summary, quantity, price 
+                FROM cartItems LEFT JOIN books 
+                ON cartItems.book_id = books.id
+                WHERE user_id=? AND cartItems.id IN (?)`;
+    let values = [user_id, selected]
+    conn.query(sql, values,
+        (err, results) => {
+            if(err) {
+                console.log(err);
+                return res.status(StatusCodes.BAD_REQUEST).end();
+            }
+
+            return res.status(StatusCodes.OK).json(results);
+    })
 };
 
-export const getCartItems = (req, res) => {
-  const { user_id, selected } = req.body;
+// 장바구니 아이템 삭제
+const removeCartItem = (req, res) => {
+    const {id} = req.params; // cartItemId
 
-  let sql = `
-    SELECT 
-        cart.cart_id, 
-        cart.book_id, 
-        books.title, 
-        books.summary, 
-        cart.quantity, 
-        books.price 
-    FROM cart 
-    LEFT JOIN books ON cart.book_id = books.book_id
-    WHERE cart.user_id = ?`;
+    let sql = `DELETE FROM cartItems WHERE id = ?`
+    conn.query(sql, id,
+        (err, results) => {
+            if(err) {
+                console.log(err);
+                return res.status(StatusCodes.BAD_REQUEST).end();
+            }
 
-  let values = [user_id];
-  if (selected && selected.length > 0) {
-    sql += ` AND cart.cart_id IN (?)`;
-    values.push(selected);
-  }
+            return res.status(StatusCodes.OK).json(results);
+        }
+    ) 
+}
 
-  conn.query(sql, values, (err, results) => {
-    if (err) {
-      console.error("장바구니 조회 DB 에러:", err);
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
-    }
-    return res.status(StatusCodes.OK).json(results);
-  });
-};
 
-export const deleteCartItem = (req, res) => {
-  const { cart_id } = req.params;
-
-  const sql = "DELETE FROM cart WHERE cart_id = ?";
-  const values = [cart_id];
-
-  conn.query(sql, values, (err, results) => {
-    if (err) {
-      console.error("장바구니 삭제 DB 에러:", err);
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).end();
-    }
-    return res.status(StatusCodes.OK).json({
-      message: "장바구니 삭제 성공",
-      results,
-    });
-  });
+module.exports = {
+    addToCart,
+    getCartItems,
+    removeCartItem
 };
