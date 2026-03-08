@@ -1,98 +1,129 @@
-const conn = require('../mariadb'); // db 모듈
-const mariadb = require('mysql2/promise')
-const {StatusCodes} = require('http-status-codes'); // status code 모듈
+const conn = require('../mariadb'); //db 모듈
+const {StatusCodes} = require('http-status-codes'); //status code 모듈
+const jwt = require('jsonwebtoken'); //jwt 모듈
+const crypto = require('crypto'); //crypto 모듈 : 암호화 
+const dotenv = require('dotenv'); //dotenv 모듈
+dotenv.config();
 
+const join = (req, res)=> {
+    const {email, password} = req.body;
 
-const order = async (req, res) => {
-    const conn = await mariadb.createConnection({
-        host : '127.0.0.1',
-        user : 'root',
-        password : 'root',
-        database : 'BookShop',
-        dateStrings : true
-    });
+    let sql = 'INSERT INTO users (email, password, salt) VALUES (?, ?, ?)';
+    
+    // 암호화된 비밀번호와 salt 값을 같이 DB에 저장
+    const salt = crypto.randomBytes(10).toString('base64'); 
+    const hashPassword = crypto.pbkdf2Sync(password, salt, 1000, 10, 'sha512').toString('base64'); 
 
-    const {items, delivery, totalQuantity, totalPrice, userId, firstBookTitle} = req.body;
+    console.log(hashPassword);
 
-    // delivery 테이블 삽입 
-    let sql = "INSERT INTO delivery (address, receiver, contact) VALUES (?, ?, ?);";
-    let values = [delivery.address, delivery.receiver, delivery.contact];
-    let [results] = await conn.execute(sql, values);
-    let delivery_id = results.insertId;
+    let values = [email, hashPassword, salt];
+    conn.query(sql, values,
+      (err, results) => {
+         if(err) {
+            console.log(err);
+            return res.status(StatusCodes.BAD_REQUEST).end(); // BAD REQUEST
+         }
 
-
-    // Orders 테이블 삽입
-    sql = `INSERT INTO orders (book_title, total_quantity, total_price, user_id, delivery_id) 
-            VALUES (?, ?, ?, ?, ?)`;
-    values = [firstBookTitle, totalQuantity, totalPrice, userId, delivery_id];
-    [results] = await conn.execute(sql, values);
-    let order_id = results.insertId;
-
-    // items를 가지고, 장바구니에서 book_id, quantity 조회
-    sql = `SELECT book_id, quantity FROM cartItems WHERE id IN (?)`;
-    let [orderItems, fields] = await conn.query(sql, [items]); 
-
-    // orderedBook 테이블 삽입
-    sql = `INSERT INTO orderedBook (order_id, book_id, quantity) VALUES ?;`
-
-    // items ... 배열 : 요소들을 하나씩 꺼내서 (foreach문 돌려서) > 
-    values = [];
-    orderItems.forEach((item) => {
-        values.push([order_id, item.book_id, item.quantity]);
-    });
-    [results] = await conn.query(sql, [values]);
-
-    let result = await deleteCartItems(conn, items);
-
-    return res.status(StatusCodes.OK).json(result);
+         return res.status(StatusCodes.CREATED).json(results);
+      }
+   )
 };
 
-const deleteCartItems = async (conn, items) => {
-    let sql = `DELETE FROM cartItems WHERE id IN (?)`;
+const login = (req, res)=>{
+   const {email, password} = req.body;
 
-    let result = await conn.query(sql, [items]);
-    return result;
-}
+   let sql = 'SELECT * FROM users WHERE email = ?';
+   conn.query(sql, email,
+    (err, results) => {
+        if(err){
+           console.log(err);
+           return res.status(StatusCodes.BAD_REQUEST).end(); 
+        }
 
-const getOrders = async (req, res) => {
-    const conn = await mariadb.createConnection({
-        host : '127.0.0.1',
-        user : 'root',
-        password : 'root',
-        database : 'BookShop',
-        dateStrings : true
-    });
+        const loginUser = results[0];
 
-    let sql = `SELECT orders.id, created_at, address, receiver, contact
-                book_title, total_quantity, total_price
-                FROM orders LEFT JOIN delivery 
-                ON orders.delivery_id = delivery.id;`
-    let [rows, fields] = await conn.query(sql);
-    return res.status(StatusCodes.OK).json(rows);
+        // salt값 꺼내서 날 것으로 들어온 비밀번호 암호화 해보고
+        const hashPassword = crypto.pbkdf2Sync(password, loginUser.salt, 1000, 10, 'sha512').toString('base64'); 
+
+        // => DB 비밀번호랑 비교 
+        if(loginUser && loginUser.password == hashPassword){
+            const token = jwt.sign({
+                email : loginUser.email
+            }, process.env.PRIVATE_KEY, {
+                expiresIn : '5m',
+                issuer : "kayoung"
+            })
+            
+            //토큰 쿠키에 담기
+            res.cookie("token", token, {
+                httpOnly : true
+            });
+            console.log(token);
+
+            return res.status(StatusCodes.OK).json(results);
+        } else {
+            return res.status(StatusCodes.UNAUTHORIZED).end() //401 : Unauthorized
+        }
+
+    })
 };
 
-const getOrderDetail =  async (req, res) => {
-    const {id} = req.params;
+const passwordResetRequest = (req, res)=>{
+    const {email} = req.body;
 
-    const conn = await mariadb.createConnection({
-        host : '127.0.0.1',
-        user : 'root',
-        password : 'root',
-        database : 'BookShop',
-        dateStrings : true
-    });
+   let sql = 'SELECT * FROM users WHERE email = ?';
+   conn.query(sql, email,
+    (err, results) => {
+        if(err){
+           console.log(err);
+           return res.status(StatusCodes.BAD_REQUEST).end(); 
+        }
 
-    let sql = `SELECT book_id, title, author, price, quantity
-            FROM orderedBook LEFT JOIN books 
-            ON orderedBook.book_id = books.id
-            WHERE order_id=?`
-    let [rows, fields] = await conn.query(sql, [id]);
-    return res.status(StatusCodes.OK).json(rows);
+        //이메일로 유저가 있는지 찾아보자
+        const user = results[0];
+        if(user) {
+            return res.status(StatusCodes.OK).json({
+                email : email
+            });
+        } else {
+            return res.status(StatusCodes.UNAUTHORIZED).end() //401 : Unauthorized
+        }
+
+    })
 };
 
+
+//passwordResetRequest에서 res한 email을 front가 passwordReset req으로 보내줄것임 
+
+const passwordReset = (req,res) => {
+    const {email, password} = req.body;
+
+    let sql = 'UPDATE users SET password=?, salt=? WHERE email=?';
+    
+    // 암호화된 비밀번호와 salt 값을 같이 DB에 저장
+    const salt = crypto.randomBytes(10).toString('base64'); 
+    const hashPassword = crypto.pbkdf2Sync(password, salt, 1000, 10, 'sha512').toString('base64'); 
+
+    let values = [hashPassword, salt, email]; 
+    conn.query(sql, values,
+        (err, results) => {
+            if(err) {
+                console.log(err);
+                return res.status(StatusCodes.BAD_REQUEST).end();
+            }
+            if(results.affectedRows == 0) {
+                return res.status(StatusCodes.BAD_REQUEST).end();
+            }
+            else {
+                return res.status(StatusCodes.OK).json(results);    
+            }   
+        }
+    )
+};
 
 module.exports = {
-    order,
-    getOrders,
-    getOrderDetail
-}
+    join, 
+    login, 
+    passwordResetRequest, 
+    passwordReset
+};
